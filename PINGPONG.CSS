@@ -1,0 +1,56 @@
+:root{
+  --bg:#0b1626;
+  --panel:#0f2436;
+  --accent:#ffd166;
+  --muted:#9fb4c8;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:var(--muted);background:linear-gradient(180deg,#071021 0%, #071a2a 100%);display:flex;align-items:center;justify-content:center}
+
+.container{
+  width:880px;
+  max-width:95vw;
+  text-align:center;
+}
+
+h1{color:var(--accent);margin:10px 0 6px;font-weight:600}
+
+.scoreboard{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  font-size:28px;
+  margin-bottom:10px;
+  color:var(--muted);
+}
+
+.score{
+  background:var(--panel);
+  padding:8px 18px;
+  border-radius:8px;
+  min-width:60px;
+  font-weight:700;
+  color:var(--accent);
+  box-shadow:0 4px 14px rgba(0,0,0,0.4), inset 0 -2px 0 rgba(255,255,255,0.02);
+}
+
+.score-label{color:var(--muted);font-size:22px}
+
+canvas{
+  width:100%;
+  height:auto;
+  display:block;
+  margin:0 auto 12px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:12px;
+  box-shadow: 0 10px 30px rgba(3,8,15,0.7);
+  cursor:crosshair;
+  touch-action:none;
+}
+
+.controls{font-size:13px;color:#9fb4c8;margin:6px 0}
+
+#restart{background:var(--accent);border:none;padding:8px 14px;border-radius:8px;color:#082032;font-weight:600;cursor:pointer}
+#restart:active{transform:translateY(1px)}
