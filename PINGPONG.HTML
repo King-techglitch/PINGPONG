@@ -3,20 +3,35 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PINGPONG GAME</title>
+  <title>Adventure Pong</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Pong</h1>
+    <header class="game-header">
+      <div class="game-title">Adventure Pong</div>
+      <div class="game-info">
+        <span>Lives: <span id="livesValue" class="value">3</span></span>
+        <span>Stage: <span id="stageValue" class="value">Training Grounds</span></span>
+      </div>
+    </header>
+
     <div class="scoreboard">
       <div id="playerScore" class="score">0</div>
       <div class="score-label">—</div>
       <div id="computerScore" class="score">0</div>
     </div>
+
     <canvas id="game" width="800" height="500"></canvas>
-    <p class="controls">Controls: Move mouse over the canvas or use Arrow Up / Arrow Down to move the left paddle.</p>
-    <button id="restart">Restart Scores & Reset</button>
+
+    <p class="controls">
+      Controls: Move mouse over the canvas or use <strong>Arrow Up / Arrow Down</strong> to move the left paddle.
+    </p>
+
+    <div class="button-group">
+      <button id="startButton">Start Adventure</button>
+      <button id="restart" class="danger">Restart</button>
+    </div>
   </div>
 
   <script src="script.js"></script>
