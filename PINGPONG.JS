@@ -1,35 +1,81 @@
-// Simple Pong game
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
   const playerScoreEl = document.getElementById('playerScore');
   const computerScoreEl = document.getElementById('computerScore');
+  const startButton = document.getElementById('startButton');
   const restartBtn = document.getElementById('restart');
+  const livesValueEl = document.getElementById('livesValue');
+  const stageValueEl = document.getElementById('stageValue');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
 
-  // Game objects
-  const paddleWidth = 12;
-  const paddleHeight = 110;
-  const paddleOffset = 18;
-  const paddleSpeed = 6; // keyboard speed
-  const aiSpeed = 4;     // computer paddle max speed
+  const stories = [
+    {
+      name: 'Training Grounds',
+      intro: 'The warrior enters the Academy of Echoes, where a rookie rival is eager to test their reflexes.',
+      boss: false,
+      difficulty: 'easy'
+    },
+    {
+      name: 'Moonlit Vale',
+      intro: 'A forgotten path opens under moonlight, where the first real champion of the valley waits.',
+      boss: false,
+      difficulty: 'normal'
+    },
+    {
+      name: 'Crystal Cavern',
+      intro: 'The cavern hums with arcane energy as a living crystal guardian blocks the way onward.',
+      boss: false,
+      difficulty: 'hard'
+    },
+    {
+      name: 'Stone Titan',
+      intro: 'The ancient titan awakens beneath the ruins, its stone paddle carrying the weight of a dead empire.',
+      boss: true,
+      difficulty: 'boss'
+    },
+    {
+      name: 'Inferno Drake',
+      intro: 'A dragon of lava and fury descends from the skies, blasting each rally with heat and speed.',
+      boss: true,
+      difficulty: 'boss'
+    },
+    {
+      name: 'Void Sovereign',
+      intro: 'The final ruler of the shadows appears, shadowing every movement with impossible precision.',
+      boss: true,
+      difficulty: 'boss'
+    }
+  ];
+
+  const levelState = {
+    currentStage: 0,
+    lives: 3,
+    score: 0,
+    computerScore: 0,
+    running: false,
+    storyIndex: 0,
+    gameStarted: false,
+    powerUps: [],
+    activePower: null
+  };
 
   const player = {
-    x: paddleOffset,
-    y: (HEIGHT - paddleHeight) / 2,
-    width: paddleWidth,
-    height: paddleHeight,
+    x: 18,
+    y: (HEIGHT - 110) / 2,
+    width: 12,
+    height: 110,
     dy: 0
   };
 
   const computer = {
-    x: WIDTH - paddleOffset - paddleWidth,
-    y: (HEIGHT - paddleHeight) / 2,
-    width: paddleWidth,
-    height: paddleHeight
+    x: WIDTH - 30,
+    y: (HEIGHT - 110) / 2,
+    width: 12,
+    height: 110
   };
 
   const ball = {
@@ -41,23 +87,57 @@
     vy: 0
   };
 
-  let playerScore = 0;
-  let computerScore = 0;
-
-  // Input state
   const keys = { ArrowUp: false, ArrowDown: false };
   let useMouse = false;
+
+  function clamp(v, a, b) {
+    return Math.max(a, Math.min(b, v));
+  }
 
   function resetBall(direction = null) {
     ball.x = WIDTH / 2;
     ball.y = HEIGHT / 2;
-    ball.speed = 5;
+    ball.speed = 5 + levelState.currentStage * 0.35;
 
-    // random-ish angle between -0.35 and 0.35 radians
-    const angle = (Math.random() * 0.7 - 0.35);
+    const angle = (Math.random() * 0.8) - 0.4;
     const dir = direction === 'left' ? -1 : direction === 'right' ? 1 : (Math.random() < 0.5 ? -1 : 1);
     ball.vx = dir * ball.speed * Math.cos(angle);
     ball.vy = ball.speed * Math.sin(angle);
+  }
+
+  function updateStageText() {
+    const stage = stories[levelState.currentStage] || stories[0];
+    stageValueEl.textContent = stage.name;
+    livesValueEl.textContent = String(levelState.lives);
+  }
+
+  function spawnPowerUp() {
+    const types = ['speed', 'expand', 'shield'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const x = WIDTH / 2 + (Math.random() * 100 - 50);
+    const y = HEIGHT / 2 + (Math.random() * 100 - 50);
+
+    levelState.powerUps.push({
+      type,
+      x,
+      y,
+      r: 12,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2
+    });
+  }
+
+  function activatePowerUp(type) {
+    if (type === 'speed') {
+      ball.speed *= 1.2;
+      setTimeout(() => { ball.speed /= 1.2; }, 4000);
+    } else if (type === 'expand') {
+      player.height = Math.min(player.height * 1.5, 170);
+      setTimeout(() => { player.height = 110; }, 4000);
+    } else if (type === 'shield') {
+      levelState.activePower = 'shield';
+      setTimeout(() => { levelState.activePower = null; }, 6000);
+    }
   }
 
   function drawRect(x, y, w, h, color = '#fff') {
@@ -73,61 +153,104 @@
   }
 
   function drawNet() {
-    const segment = 14;
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    for (let y = 10; y < HEIGHT; y += segment * 2) {
+    const segment = 12;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    for (let y = 0; y < HEIGHT; y += segment * 2) {
       ctx.fillRect(WIDTH / 2 - 1, y, 2, segment);
     }
   }
 
+  function drawPowerUps() {
+    for (const p of levelState.powerUps) {
+      const colors = {
+        speed: '#ffd166',
+        expand: '#58cced',
+        shield: '#7ef29a'
+      };
+      ctx.fillStyle = colors[p.type];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   function render() {
-    // clear
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-    // background subtle
-    ctx.fillStyle = 'rgba(255,255,255,0.01)';
+    ctx.fillStyle = 'rgba(255,255,255,0.015)';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // net
     drawNet();
-
-    // paddles
     drawRect(player.x, player.y, player.width, player.height, '#ffd166');
     drawRect(computer.x, computer.y, computer.width, computer.height, '#9fb4c8');
 
-    // ball
-    drawCircle(ball.x, ball.y, ball.r, '#ffffff');
+    if (levelState.activePower === 'shield') {
+      drawRect(player.x - 8, player.y - 8, player.width + 16, player.height + 16, 'rgba(126,242,154,0.2)');
+    }
 
+    drawCircle(ball.x, ball.y, ball.r, '#ffffff');
+    drawPowerUps();
   }
 
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function startAdventure() {
+    levelState.gameStarted = true;
+    levelState.running = true;
+    levelState.currentStage = 0;
+    levelState.lives = 3;
+    levelState.score = 0;
+    levelState.computerScore = 0;
+    updateStageText();
+    resetBall('left');
+  }
+
+  function nextStage() {
+    levelState.currentStage += 1;
+    if (levelState.currentStage >= stories.length) {
+      levelState.currentStage = stories.length - 1;
+      levelState.running = false;
+      return;
+    }
+    levelState.score = 0;
+    levelState.computerScore = 0;
+    updateStageText();
+    resetBall('left');
+  }
+
+  function finishStage() {
+    const stage = stories[levelState.currentStage];
+    if (stage && stage.boss) {
+      console.log('Boss defeated');
+    }
+    if (levelState.currentStage < stories.length - 1) {
+      nextStage();
+    } else {
+      levelState.running = false;
+    }
+  }
 
   function update() {
-    // Player keyboard movement
-    if (!useMouse) {
-      if (keys.ArrowUp) player.dy = -paddleSpeed;
-      else if (keys.ArrowDown) player.dy = paddleSpeed;
-      else player.dy = 0;
+    if (!levelState.running) return;
 
+    if (!useMouse) {
+      if (keys.ArrowUp) player.dy = -6;
+      else if (keys.ArrowDown) player.dy = 6;
+      else player.dy = 0;
       player.y += player.dy;
       player.y = clamp(player.y, 0, HEIGHT - player.height);
     }
 
-    // Computer AI: move towards the ball center with limited speed
     const target = ball.y - (computer.height / 2);
     const diff = target - computer.y;
-    if (Math.abs(diff) > aiSpeed) {
-      computer.y += diff > 0 ? aiSpeed : -aiSpeed;
+    if (Math.abs(diff) > 4) {
+      computer.y += diff > 0 ? 4 : -4;
     } else {
       computer.y = target;
     }
     computer.y = clamp(computer.y, 0, HEIGHT - computer.height);
 
-    // Ball movement
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    // Top/bottom collision
     if (ball.y - ball.r <= 0) {
       ball.y = ball.r;
       ball.vy = -ball.vy;
@@ -136,65 +259,82 @@
       ball.vy = -ball.vy;
     }
 
-    // Paddle collisions - using AABB test with circle (approximate)
-    // Player paddle
+    // Player collision
     if (ball.x - ball.r <= player.x + player.width) {
       if (ball.y >= player.y && ball.y <= player.y + player.height && ball.vx < 0) {
-        // collision - compute reflection based on where it hit the paddle
         const rel = (ball.y - (player.y + player.height / 2)) / (player.height / 2);
-        const maxBounce = Math.PI / 3; // 60 degrees
-        const bounce = rel * maxBounce;
-        const speedIncrease = 1.05;
-        ball.speed *= speedIncrease;
-        const dir = 1; // ball goes right
-        ball.vx = dir * ball.speed * Math.cos(bounce);
+        const bounce = rel * (Math.PI / 3);
+        ball.vx = Math.abs(ball.vx) * 1.06 * Math.cos(bounce);
         ball.vy = ball.speed * Math.sin(bounce);
-        ball.x = player.x + player.width + ball.r + 0.5; // reposition to avoid sticking
+        ball.x = player.x + player.width + ball.r + 0.5;
       }
     }
 
-    // Computer paddle
+    // Computer collision
     if (ball.x + ball.r >= computer.x) {
       if (ball.y >= computer.y && ball.y <= computer.y + computer.height && ball.vx > 0) {
         const rel = (ball.y - (computer.y + computer.height / 2)) / (computer.height / 2);
-        const maxBounce = Math.PI / 3;
-        const bounce = rel * maxBounce;
-        const speedIncrease = 1.03;
-        ball.speed *= speedIncrease;
-        const dir = -1; // ball goes left
-        ball.vx = dir * ball.speed * Math.cos(bounce);
+        const bounce = rel * (Math.PI / 3);
+        ball.vx = -Math.abs(ball.vx) * 1.06 * Math.cos(bounce);
         ball.vy = ball.speed * Math.sin(bounce);
         ball.x = computer.x - ball.r - 0.5;
       }
     }
 
-    // Score conditions
     if (ball.x + ball.r < 0) {
-      // computer scores
-      computerScore++;
-      computerScoreEl.textContent = computerScore;
-      resetBall('right');
+      levelState.computerScore++;
+      computerScoreEl.textContent = levelState.computerScore;
+      levelState.lives--;
+      livesValueEl.textContent = levelState.lives;
+
+      if (levelState.lives <= 0) {
+        levelState.running = false;
+      } else {
+        resetBall('right');
+      }
     } else if (ball.x - ball.r > WIDTH) {
-      // player scores
-      playerScore++;
-      playerScoreEl.textContent = playerScore;
-      resetBall('left');
+      levelState.score++;
+      playerScoreEl.textContent = levelState.score;
+
+      if (Math.random() < 0.22) {
+        spawnPowerUp();
+      }
+
+      if (levelState.score >= 5) {
+        finishStage();
+      } else {
+        resetBall('left');
+      }
+    }
+
+    for (let i = levelState.powerUps.length - 1; i >= 0; i--) {
+      const p = levelState.powerUps[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.x < 0 || p.x > WIDTH || p.y < 0 || p.y > HEIGHT) {
+        levelState.powerUps.splice(i, 1);
+        continue;
+      }
+
+      if (
+        p.x + p.r > player.x &&
+        p.x - p.r < player.x + player.width &&
+        p.y + p.r > player.y &&
+        p.y - p.r < player.y + player.height
+      ) {
+        activatePowerUp(p.type);
+        levelState.powerUps.splice(i, 1);
+      }
     }
   }
 
-  // Game loop
-  let lastTime = performance.now();
-  function loop(now) {
-    const dt = now - lastTime;
-    lastTime = now;
-
-    update(dt);
+  function gameLoop() {
+    update();
     render();
-
-    requestAnimationFrame(loop);
+    requestAnimationFrame(gameLoop);
   }
 
-  // Input handlers
   canvas.addEventListener('mousemove', (e) => {
     useMouse = true;
     const rect = canvas.getBoundingClientRect();
@@ -203,7 +343,6 @@
     player.y = clamp(y - player.height / 2, 0, HEIGHT - player.height);
   });
 
-  // Touch support - allow dragging on mobile
   canvas.addEventListener('touchmove', (e) => {
     useMouse = true;
     e.preventDefault();
@@ -214,35 +353,45 @@
     player.y = clamp(y - player.height / 2, 0, HEIGHT - player.height);
   }, { passive: false });
 
-  // When the player uses keyboard, we can allow switching back to keyboard by not setting useMouse,
-  // but if we've had recent mouse/touch movement we keep using mouse. To let keyboard take control again,
-  // the player can click outside and use keys.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       keys[e.key] = true;
-      // allow keyboard to control again if arrow keys pressed
       useMouse = false;
     }
   });
+
   window.addEventListener('keyup', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       keys[e.key] = false;
     }
   });
 
-  // Restart button
-  restartBtn.addEventListener('click', () => {
-    playerScore = 0;
-    computerScore = 0;
-    playerScoreEl.textContent = playerScore;
-    computerScoreEl.textContent = computerScore;
-    player.y = (HEIGHT - player.height) / 2;
-    computer.y = (HEIGHT - computer.height) / 2;
-    resetBall();
+  startButton.addEventListener('click', () => {
+    levelState.running = true;
+    levelState.gameStarted = true;
+    levelState.currentStage = 0;
+    levelState.lives = 3;
+    levelState.score = 0;
+    levelState.computerScore = 0;
+    playerScoreEl.textContent = '0';
+    computerScoreEl.textContent = '0';
+    updateStageText();
+    resetBall('left');
   });
 
-  // Initialize
-  resetBall();
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
+  restartBtn.addEventListener('click', () => {
+    levelState.running = true;
+    levelState.currentStage = 0;
+    levelState.lives = 3;
+    levelState.score = 0;
+    levelState.computerScore = 0;
+    playerScoreEl.textContent = '0';
+    computerScoreEl.textContent = '0';
+    updateStageText();
+    resetBall('left');
+  });
+
+  updateStageText();
+  resetBall('left');
+  requestAnimationFrame(gameLoop);
 })();
