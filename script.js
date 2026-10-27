@@ -6,9 +6,31 @@
   const playerScoreEl = document.getElementById('playerScore');
   const computerScoreEl = document.getElementById('computerScore');
   const restartBtn = document.getElementById('restart');
+  const startButton = document.getElementById('startButton');
+  const livesValueEl = document.getElementById('livesValue');
+  const stageValueEl = document.getElementById('stageValue');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
+
+  function syncHud() {
+    if (livesValueEl) {
+      livesValueEl.textContent = String(gameState.lives);
+    }
+
+    if (stageValueEl) {
+      const currentStage = isCurrentLevelBoss() ? bosses[gameState.currentBossIndex].name : getCurrentLevelData().name;
+      stageValueEl.textContent = currentStage;
+    }
+
+    if (playerScoreEl) {
+      playerScoreEl.textContent = String(player.score);
+    }
+
+    if (computerScoreEl) {
+      computerScoreEl.textContent = String(computer.score);
+    }
+  }
 
   // ============ GAME STATE & PROGRESSION ============
   const gameState = {
@@ -231,28 +253,26 @@
     soundSystem.playSound('powerUp');
 
     if (type === 'SPEED_BOOST') {
-      // Actually slows ball
       const originalSpeed = ball.speed;
       ball.speed *= 0.5;
-      const timeout = setTimeout(() => {
+      setTimeout(() => {
         ball.speed = originalSpeed;
       }, powerUpTypes[type].duration);
     } else if (type === 'WIDE_PADDLE') {
       const originalHeight = player.height;
       player.height *= 1.5;
-      const timeout = setTimeout(() => {
+      setTimeout(() => {
         player.height = originalHeight;
       }, powerUpTypes[type].duration);
     } else if (type === 'SLOW_BALL') {
       const originalSpeed = ball.speed;
       ball.speed *= 0.4;
-      const timeout = setTimeout(() => {
+      setTimeout(() => {
         ball.speed = originalSpeed;
       }, powerUpTypes[type].duration);
     } else if (type === 'SHIELD') {
       player.shield = true;
     } else if (type === 'BALL_SPLIT') {
-      // On next hit with player paddle, split ball
       ball.isMultiBall = true;
     }
 
@@ -365,15 +385,12 @@
   }
 
   function drawGameUI() {
-    // Score display
     drawText(`Player: ${player.score}`, 80, 30, 16, '#ffd166');
     drawText(`${getCurrentLevelData().name}`, WIDTH / 2, 30, 16, '#9fb4c8');
     drawText(`Computer: ${computer.score}`, WIDTH - 80, 30, 16, '#9fb4c8');
 
-    // Lives
     drawText(`Lives: ${gameState.lives}`, 30, HEIGHT - 20, 14, gameState.lives <= 1 ? '#FF6347' : '#fff');
 
-    // Active power-ups display
     if (player.activePowerUps.length > 0) {
       let xOffset = WIDTH - 150;
       player.activePowerUps.forEach((powerUpType, idx) => {
@@ -384,27 +401,20 @@
     }
 
     if (isCurrentLevelBoss()) {
-      // Show boss name
       const boss = bosses[gameState.currentBossIndex];
       drawText(`⚔️ ${boss.name} ⚔️`, WIDTH / 2, HEIGHT - 20, 14, boss.color);
     }
 
-    // Pause instruction
     drawText('P = Pause', WIDTH / 2, HEIGHT - 20, 12, '#666');
   }
 
   function render() {
-    // Clear
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
-
-    // Background
     ctx.fillStyle = 'rgba(255,255,255,0.01)';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Net
     drawNet();
 
-    // Paddles
     const playerColor = player.shield ? '#00FF00' : '#ffd166';
     drawRect(player.x, player.y, player.width, player.height, playerColor);
 
@@ -412,7 +422,6 @@
     const computerColor = isCurrentLevelBoss() ? currentLevel.color : computer.color;
     drawRect(computer.x, computer.y, computer.width, computer.height, computerColor);
 
-    // Ball(s)
     balls.forEach(b => {
       if (b.trail.length > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -425,7 +434,6 @@
       drawCircle(b.x, b.y, b.r, '#ffffff');
     });
 
-    // Power-ups on screen
     powerUps.forEach((pUp, idx) => {
       const pData = powerUpTypes[pUp.type];
       ctx.fillStyle = pData.color;
@@ -438,10 +446,9 @@
       drawText(pData.icon, pUp.x, pUp.y + 6, 16);
     });
 
-    // Game UI
     drawGameUI();
+    syncHud();
 
-    // Menu overlay if active
     if (gameState.currentMenu !== 'playing') {
       drawMenu();
     }
@@ -469,7 +476,6 @@
 
     const level = getCurrentLevelData();
 
-    // Player movement
     if (!useMouse) {
       if (keys.ArrowUp) player.dy = -level.paddleSpeed;
       else if (keys.ArrowDown) player.dy = level.paddleSpeed;
@@ -479,8 +485,7 @@
       player.y = clamp(player.y, 0, HEIGHT - player.height);
     }
 
-    // Computer AI
-    const computerTargetBall = balls[0]; // AI targets first ball
+    const computerTargetBall = balls[0];
     const target = computerTargetBall.y - (computer.height / 2);
     const diff = target - computer.y;
     if (Math.abs(diff) > level.aiSpeed) {
@@ -490,12 +495,10 @@
     }
     computer.y = clamp(computer.y, 0, HEIGHT - computer.height);
 
-    // Update power-ups (move them)
     powerUps.forEach((pUp, idx) => {
       pUp.x += pUp.vx;
       pUp.y += pUp.vy;
 
-      // Bounce off walls
       if (pUp.y - pUp.radius <= 0 || pUp.y + pUp.radius >= HEIGHT) {
         pUp.vy = -pUp.vy;
         pUp.y = clamp(pUp.y, pUp.radius, HEIGHT - pUp.radius);
@@ -505,7 +508,6 @@
         pUp.x = clamp(pUp.x, pUp.radius, WIDTH - pUp.radius);
       }
 
-      // Check collision with player
       const dist = Math.hypot(pUp.x - player.x - player.width / 2, pUp.y - player.y - player.height / 2);
       if (dist < pUp.radius + player.height / 2) {
         activatePowerUp(pUp.type);
@@ -513,16 +515,13 @@
       }
     });
 
-    // Ball physics (support multiple balls)
     balls.forEach((b, ballIdx) => {
       b.x += b.vx;
       b.y += b.vy;
 
-      // Trail
       b.trail.push({ x: b.x, y: b.y });
       if (b.trail.length > 10) b.trail.shift();
 
-      // Top/bottom collision
       if (b.y - b.r <= 0) {
         b.y = b.r;
         b.vy = -b.vy;
@@ -533,7 +532,6 @@
         soundSystem.playSound('hit');
       }
 
-      // Player paddle collision
       if (b.x - b.r <= player.x + player.width) {
         if (b.y >= player.y && b.y <= player.y + player.height && b.vx < 0) {
           soundSystem.playSound('hit');
@@ -544,9 +542,8 @@
           const speedIncrease = 1.05;
           b.speed *= speedIncrease;
 
-          // Ball split if active
           if (b.isMultiBall && ballIdx === 0) {
-            b.isMultiBall = false; // Use power-up
+            b.isMultiBall = false;
             const newBall = {
               x: b.x,
               y: b.y,
@@ -567,7 +564,6 @@
         }
       }
 
-      // Computer paddle collision
       if (b.x + b.r >= computer.x) {
         if (b.y >= computer.y && b.y <= computer.y + computer.height && b.vx > 0) {
           soundSystem.playSound('hit');
@@ -584,7 +580,6 @@
         }
       }
 
-      // Scoring
       if (b.x + b.r < 0) {
         computer.score++;
         soundSystem.playSound('score');
@@ -608,27 +603,22 @@
         soundSystem.playSound('score');
         resetBall('left');
 
-        // Chance to spawn power-up
         if (Math.random() < level.powerUpChance) {
           spawnPowerUp(WIDTH / 2, HEIGHT / 2);
         }
 
-        // Check win condition
         if (player.score >= level.scoreToWin) {
           soundSystem.playSound('levelUp');
           gameState.totalScore += player.score;
 
           if (isCurrentLevelBoss()) {
-            // Boss defeated
             gameState.currentMenu = 'bossDefeated';
             if (gameState.currentBossIndex >= bosses.length - 1) {
-              // Final boss defeated
               setTimeout(() => {
                 gameState.currentMenu = 'gameWon';
               }, 2000);
             }
           } else {
-            // Level complete
             gameState.currentMenu = 'levelComplete';
             if (gameState.currentLevel < levels.length - 1) {
               gameState.unlockedLevels.push(gameState.currentLevel + 1);
@@ -637,14 +627,14 @@
         }
       }
 
-      // Remove balls that go off screen (multi-ball)
       if (ballIdx > 0 && (b.x < -50 || b.x > WIDTH + 50)) {
         balls.splice(ballIdx, 1);
       }
     });
+
+    syncHud();
   }
 
-  // ============ GAME LOOP ============
   let lastTime = performance.now();
   function loop(now) {
     const dt = now - lastTime;
@@ -655,7 +645,6 @@
     requestAnimationFrame(loop);
   }
 
-  // ============ INPUT HANDLING ============
   canvas.addEventListener('mousemove', (e) => {
     useMouse = true;
     const rect = canvas.getBoundingClientRect();
@@ -674,6 +663,17 @@
     player.y = clamp(y - player.height / 2, 0, HEIGHT - player.height);
   }, { passive: false });
 
+  function startAdventure() {
+    gameState.currentMenu = 'story';
+    gameState.currentLevel = 0;
+    gameState.currentBossIndex = 0;
+    gameState.lives = 3;
+    player.score = 0;
+    computer.score = 0;
+    resetBalls();
+    syncHud();
+  }
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       keys[e.key] = true;
@@ -683,17 +683,15 @@
       soundSystem.playSound('click');
 
       if (gameState.currentMenu === 'main') {
-        gameState.currentMenu = 'story';
-        gameState.currentLevel = 0;
-        gameState.currentBossIndex = 0;
+        startAdventure();
       } else if (gameState.currentMenu === 'story') {
         gameState.currentMenu = 'playing';
         player.score = 0;
         computer.score = 0;
         resetBalls();
+        syncHud();
       } else if (gameState.currentMenu === 'levelComplete') {
         gameState.currentLevel++;
-        gameState.currentMenu = isCurrentLevelBoss() ? 'story' : 'story';
         gameState.currentBossIndex = 0;
         gameState.currentMenu = 'story';
       } else if (gameState.currentMenu === 'bossDefeated') {
@@ -709,6 +707,7 @@
         gameState.lives = 3;
         player.score = 0;
         computer.score = 0;
+        syncHud();
       }
     } else if (e.key === 'p' || e.key === 'P') {
       if (gameState.currentMenu === 'playing') {
@@ -743,7 +742,12 @@
     }
   });
 
-  // Restart button
+  if (startButton) {
+    startButton.addEventListener('click', () => {
+      startAdventure();
+    });
+  }
+
   restartBtn.addEventListener('click', () => {
     gameState.currentMenu = 'main';
     gameState.lives = 3;
@@ -753,10 +757,11 @@
     player.score = 0;
     computer.score = 0;
     resetBalls();
+    syncHud();
   });
 
-  // Start game loop
   resetBalls();
+  syncHud();
   lastTime = performance.now();
   requestAnimationFrame(loop);
 })();
