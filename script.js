@@ -34,14 +34,14 @@
 
   // ============ GAME STATE & PROGRESSION ============
   const gameState = {
-    currentMenu: 'main', // 'main', 'story', 'levelSelect', 'playing', 'levelComplete', 'gameOver', 'bossDefeated', 'gameWon', 'paused'
+    currentMenu: 'main',
     currentLevel: 0,
     currentBossIndex: 0,
     lives: 3,
     totalScore: 0,
-    unlockedLevels: [0], // Start with level 0 unlocked
+    unlockedLevels: [0],
     soundEnabled: true,
-    difficulty: 'normal', // 'easy', 'normal', 'hard'
+    difficulty: 'normal',
   };
 
   // ============ LEVELS & BOSS DATA ============
@@ -123,7 +123,7 @@
     WIDE_PADDLE: { icon: '📏', color: '#87CEEB', effect: 'Your paddle grows 1.5x for 5 seconds', duration: 5000 },
     SLOW_BALL: { icon: '🐢', color: '#90EE90', effect: 'Ball slows for 4 seconds', duration: 4000 },
     SHIELD: { icon: '🛡️', color: '#DC143C', effect: 'Blocks next miss once', duration: Infinity },
-    BALL_SPLIT: { icon: '⚪', color: '#FF69B4', effect: 'Next hit splits into 2 balls!', duration: 1 }, // one use
+    BALL_SPLIT: { icon: '⚪', color: '#FF69B4', effect: 'Next hit splits into 2 balls!', duration: 1 },
   };
 
   // ============ GAME OBJECTS ============
@@ -162,8 +162,8 @@
     isMultiBall: false,
   };
 
-  const balls = [ball]; // Support for multi-ball power-up
-  const powerUps = []; // Array of active power-ups on screen
+  const balls = [ball];
+  const powerUps = [];
 
   // ============ INPUT STATE ============
   const keys = { ArrowUp: false, ArrowDown: false };
@@ -174,8 +174,10 @@
     enabled: true,
     playSound: (type) => {
       if (!soundSystem.enabled) return;
-      // Simple beep using Web Audio API
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtor) return;
+
+      const audioContext = new AudioCtor();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
 
@@ -204,7 +206,9 @@
   };
 
   // ============ HELPER FUNCTIONS ============
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function clamp(v, a, b) {
+    return Math.max(a, Math.min(b, v));
+  }
 
   function resetBall(direction = null) {
     ball.x = WIDTH / 2;
@@ -316,7 +320,6 @@
       drawText('A Quest Through the Arenas', WIDTH / 2, 130, 18, '#9fb4c8');
       drawText('Press SPACE to Start', WIDTH / 2, 200, 20, '#fff');
       drawText('Lives: 3 | Defeat all bosses to save the realm', WIDTH / 2, 250, 14, '#90EE90');
-
       drawText('Controls: Arrow Up/Down or Mouse', WIDTH / 2, 320, 12, '#9fb4c8');
       drawText('Collect Power-ups | Defeat Bosses | Win the Game', WIDTH / 2, 350, 12, '#9fb4c8');
 
@@ -326,7 +329,7 @@
     } else if (gameState.currentMenu === 'story') {
       const level = getCurrentLevelData();
       drawText('─ ' + level.name + ' ─', WIDTH / 2, 60, 28, '#ffd166');
-      
+
       ctx.fillStyle = '#9fb4c8';
       ctx.textAlign = 'center';
       ctx.font = '16px system-ui';
@@ -388,12 +391,11 @@
     drawText(`Player: ${player.score}`, 80, 30, 16, '#ffd166');
     drawText(`${getCurrentLevelData().name}`, WIDTH / 2, 30, 16, '#9fb4c8');
     drawText(`Computer: ${computer.score}`, WIDTH - 80, 30, 16, '#9fb4c8');
-
     drawText(`Lives: ${gameState.lives}`, 30, HEIGHT - 20, 14, gameState.lives <= 1 ? '#FF6347' : '#fff');
 
     if (player.activePowerUps.length > 0) {
       let xOffset = WIDTH - 150;
-      player.activePowerUps.forEach((powerUpType, idx) => {
+      player.activePowerUps.forEach(powerUpType => {
         const pData = powerUpTypes[powerUpType];
         drawText(pData.icon, xOffset, 60, 20, pData.color);
         xOffset -= 40;
@@ -434,7 +436,7 @@
       drawCircle(b.x, b.y, b.r, '#ffffff');
     });
 
-    powerUps.forEach((pUp, idx) => {
+    powerUps.forEach(pUp => {
       const pData = powerUpTypes[pUp.type];
       ctx.fillStyle = pData.color;
       ctx.beginPath();
@@ -454,7 +456,6 @@
     }
   }
 
-  // ============ GAME LOGIC ============
   function wrapText(text, maxLineLength) {
     const lines = [];
     const words = text.split(' ');
@@ -557,8 +558,7 @@
             balls.push(newBall);
           }
 
-          const dir = 1;
-          b.vx = dir * b.speed * Math.cos(bounce);
+          b.vx = b.speed * Math.cos(bounce);
           b.vy = b.speed * Math.sin(bounce);
           b.x = player.x + player.width + b.r + 0.5;
         }
@@ -573,8 +573,7 @@
           const bounce = rel * maxBounce;
           const speedIncrease = 1.03;
           b.speed *= speedIncrease;
-          const dir = -1;
-          b.vx = dir * b.speed * Math.cos(bounce);
+          b.vx = -b.speed * Math.cos(bounce);
           b.vy = b.speed * Math.sin(bounce);
           b.x = computer.x - b.r - 0.5;
         }
