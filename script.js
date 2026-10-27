@@ -7,11 +7,35 @@
   const computerScoreEl = document.getElementById('computerScore');
   const restartBtn = document.getElementById('restart');
   const startButton = document.getElementById('startButton');
+  const pauseButton = document.getElementById('pauseButton');
+  const muteButton = document.getElementById('muteButton');
+  const difficultySelect = document.getElementById('difficultySelect');
   const livesValueEl = document.getElementById('livesValue');
   const stageValueEl = document.getElementById('stageValue');
+  const bestScoreValueEl = document.getElementById('bestScoreValue');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
+
+  function getStoredBestScore() {
+    const raw = Number(localStorage.getItem('pong-best-score') || 0);
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  function updateBestScoreDom() {
+    if (bestScoreValueEl) {
+      bestScoreValueEl.textContent = String(gameState.bestScore);
+    }
+  }
+
+  function updateBestScoreIfNeeded() {
+    const potentialBest = Math.max(gameState.bestScore, player.score, computer.score);
+    if (potentialBest > gameState.bestScore) {
+      gameState.bestScore = potentialBest;
+      localStorage.setItem('pong-best-score', String(gameState.bestScore));
+      updateBestScoreDom();
+    }
+  }
 
   function syncHud() {
     if (livesValueEl) {
@@ -30,9 +54,22 @@
     if (computerScoreEl) {
       computerScoreEl.textContent = String(computer.score);
     }
+
+    if (pauseButton) {
+      pauseButton.textContent = gameState.currentMenu === 'paused' ? 'Resume' : 'Pause';
+    }
+
+    if (muteButton) {
+      muteButton.textContent = soundSystem.enabled ? 'Sound: On' : 'Sound: Off';
+    }
+
+    if (difficultySelect) {
+      difficultySelect.value = gameState.difficulty;
+    }
+
+    updateBestScoreDom();
   }
 
-  // ============ GAME STATE & PROGRESSION ============
   const gameState = {
     currentMenu: 'main',
     currentLevel: 0,
@@ -42,82 +79,22 @@
     unlockedLevels: [0],
     soundEnabled: true,
     difficulty: 'normal',
+    bestScore: getStoredBestScore(),
+    bossHealth: 0,
   };
 
-  // ============ LEVELS & BOSS DATA ============
   const levels = [
-    {
-      id: 0,
-      name: 'Practice Arena',
-      story: 'You enter the training grounds. A gentle opponent awaits to teach you the basics.',
-      isBoss: false,
-      paddleSpeed: 6,
-      aiSpeed: 3,
-      ballSpeed: 5,
-      scoreToWin: 5,
-      powerUpChance: 0.02,
-    },
-    {
-      id: 1,
-      name: 'Forest Temple',
-      story: 'Deep in the ancient forest, a mysterious guardian challenges you.',
-      isBoss: false,
-      paddleSpeed: 6,
-      aiSpeed: 4,
-      ballSpeed: 5.5,
-      scoreToWin: 7,
-      powerUpChance: 0.03,
-    },
-    {
-      id: 2,
-      name: 'Crystal Cavern',
-      story: 'The cavern sparkles with energy. A crystalline foe emerges from the depths.',
-      isBoss: false,
-      paddleSpeed: 6,
-      aiSpeed: 4.5,
-      ballSpeed: 6,
-      scoreToWin: 8,
-      powerUpChance: 0.04,
-    },
+    { id: 0, name: 'Practice Arena', story: 'You enter the training grounds. A gentle opponent awaits to teach you the basics.', isBoss: false, paddleSpeed: 6, aiSpeed: 3, ballSpeed: 5, scoreToWin: 5, powerUpChance: 0.02 },
+    { id: 1, name: 'Forest Temple', story: 'Deep in the ancient forest, a mysterious guardian challenges you.', isBoss: false, paddleSpeed: 6, aiSpeed: 4, ballSpeed: 5.5, scoreToWin: 7, powerUpChance: 0.03 },
+    { id: 2, name: 'Crystal Cavern', story: 'The cavern sparkles with energy. A crystalline foe emerges from the depths.', isBoss: false, paddleSpeed: 6, aiSpeed: 4.5, ballSpeed: 6, scoreToWin: 8, powerUpChance: 0.04 },
   ];
 
   const bosses = [
-    {
-      id: 0,
-      name: 'Stone Guardian',
-      story: 'A towering sentinel of the old world. Its paddle moves with relentless precision.',
-      paddleSpeed: 7,
-      aiSpeed: 5.5,
-      ballSpeed: 6.5,
-      scoreToWin: 10,
-      color: '#8b7355',
-      healthBar: true,
-    },
-    {
-      id: 1,
-      name: 'Inferno Drake',
-      story: 'A fearsome dragon wreathed in flames. Every hit burns with intensity.',
-      paddleSpeed: 8,
-      aiSpeed: 6,
-      ballSpeed: 7,
-      scoreToWin: 12,
-      color: '#ff4500',
-      healthBar: true,
-    },
-    {
-      id: 2,
-      name: 'The Void Champion',
-      story: 'The ultimate opponent. A being of pure competition. Defeat it to claim victory.',
-      paddleSpeed: 9,
-      aiSpeed: 6.5,
-      ballSpeed: 7.5,
-      scoreToWin: 15,
-      color: '#4b0082',
-      healthBar: true,
-    },
+    { id: 0, name: 'Stone Guardian', story: 'A towering sentinel of the old world. Its paddle moves with relentless precision.', paddleSpeed: 7, aiSpeed: 5.5, ballSpeed: 6.5, scoreToWin: 10, color: '#8b7355', healthBar: true, maxHealth: 4 },
+    { id: 1, name: 'Inferno Drake', story: 'A fearsome dragon wreathed in flames. Every hit burns with intensity.', paddleSpeed: 8, aiSpeed: 6, ballSpeed: 7, scoreToWin: 12, color: '#ff4500', healthBar: true, maxHealth: 5 },
+    { id: 2, name: 'The Void Champion', story: 'The ultimate opponent. A being of pure competition. Defeat it to claim victory.', paddleSpeed: 9, aiSpeed: 6.5, ballSpeed: 7.5, scoreToWin: 15, color: '#4b0082', healthBar: true, maxHealth: 6 },
   ];
 
-  // ============ POWER-UPS ============
   const powerUpTypes = {
     SPEED_BOOST: { icon: '⚡', color: '#FFD700', effect: 'Ball slows down for 3 seconds', duration: 3000 },
     WIDE_PADDLE: { icon: '📏', color: '#87CEEB', effect: 'Your paddle grows 1.5x for 5 seconds', duration: 5000 },
@@ -126,7 +103,6 @@
     BALL_SPLIT: { icon: '⚪', color: '#FF69B4', effect: 'Next hit splits into 2 balls!', duration: 1 },
   };
 
-  // ============ GAME OBJECTS ============
   const paddleWidth = 12;
   const paddleHeight = 110;
   const paddleOffset = 18;
@@ -164,12 +140,10 @@
 
   const balls = [ball];
   const powerUps = [];
-
-  // ============ INPUT STATE ============
   const keys = { ArrowUp: false, ArrowDown: false };
   let useMouse = false;
+  let lastTime = performance.now();
 
-  // ============ SOUND SYSTEM ============
   const soundSystem = {
     enabled: true,
     playSound: (type) => {
@@ -205,16 +179,36 @@
     },
   };
 
-  // ============ HELPER FUNCTIONS ============
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
+  }
+
+  function getDifficultyMultiplier() {
+    return { easy: 0.9, normal: 1, hard: 1.15 }[gameState.difficulty] || 1;
+  }
+
+  function getCurrentLevelData() {
+    if (isCurrentLevelBoss()) {
+      return bosses[gameState.currentBossIndex];
+    }
+    return levels[gameState.currentLevel];
+  }
+
+  function isCurrentLevelBoss() {
+    return gameState.currentLevel >= levels.length;
+  }
+
+  function setupBossBattle() {
+    if (!isCurrentLevelBoss()) return;
+    const boss = bosses[gameState.currentBossIndex];
+    gameState.bossHealth = boss.maxHealth || 3;
   }
 
   function resetBall(direction = null) {
     ball.x = WIDTH / 2;
     ball.y = HEIGHT / 2;
     const level = getCurrentLevelData();
-    ball.speed = level.ballSpeed;
+    ball.speed = level.ballSpeed * getDifficultyMultiplier();
 
     const angle = Math.random() * 0.7 - 0.35;
     const dir = direction === 'left' ? -1 : direction === 'right' ? 1 : (Math.random() < 0.5 ? -1 : 1);
@@ -227,17 +221,6 @@
     balls.length = 0;
     balls.push(ball);
     resetBall();
-  }
-
-  function getCurrentLevelData() {
-    if (isCurrentLevelBoss()) {
-      return bosses[gameState.currentBossIndex];
-    }
-    return levels[gameState.currentLevel];
-  }
-
-  function isCurrentLevelBoss() {
-    return gameState.currentLevel >= levels.length;
   }
 
   function spawnPowerUp(x, y) {
@@ -283,7 +266,15 @@
     player.activePowerUps.push(type);
   }
 
-  // ============ RENDERING ============
+  function updateBestScore() {
+    const best = getStoredBestScore();
+    if (player.score > best) {
+      gameState.bestScore = player.score;
+      localStorage.setItem('pong-best-score', String(player.score));
+    }
+    updateBestScoreDom();
+  }
+
   function drawRect(x, y, w, h, color = '#fff') {
     ctx.fillStyle = color;
     ctx.fillRect(x, y, w, h);
@@ -322,14 +313,12 @@
       drawText('Lives: 3 | Defeat all bosses to save the realm', WIDTH / 2, 250, 14, '#90EE90');
       drawText('Controls: Arrow Up/Down or Mouse', WIDTH / 2, 320, 12, '#9fb4c8');
       drawText('Collect Power-ups | Defeat Bosses | Win the Game', WIDTH / 2, 350, 12, '#9fb4c8');
-
       if (gameState.unlockedLevels.length > 1) {
         drawText('Press L for Level Select', WIDTH / 2, 420, 14, '#ffd166');
       }
     } else if (gameState.currentMenu === 'story') {
       const level = getCurrentLevelData();
       drawText('─ ' + level.name + ' ─', WIDTH / 2, 60, 28, '#ffd166');
-
       ctx.fillStyle = '#9fb4c8';
       ctx.textAlign = 'center';
       ctx.font = '16px system-ui';
@@ -339,7 +328,6 @@
         ctx.fillText(line, WIDTH / 2, yOffset);
         yOffset += 25;
       });
-
       drawText('Press SPACE to Begin Battle', WIDTH / 2, HEIGHT - 60, 16, '#ffd166');
     } else if (gameState.currentMenu === 'levelSelect') {
       drawText('SELECT LEVEL', WIDTH / 2, 40, 32, '#ffd166');
@@ -353,17 +341,14 @@
       drawText('Press 1-3 to select | Press ESC to return', WIDTH / 2, HEIGHT - 60, 12, '#9fb4c8');
     } else if (gameState.currentMenu === 'paused') {
       drawText('PAUSED', WIDTH / 2, 80, 36, '#ffd166');
-      drawText('Press P to Resume', WIDTH / 2, 160, 18, '#fff');
-      drawText('Press M for Menu', WIDTH / 2, 210, 18, '#fff');
+      drawText('Press P to Resume', WIDTH / 2, 150, 20, '#fff');
+      drawText('Press M for Menu', WIDTH / 2, 200, 18, '#fff');
+      drawText('Press R to Restart', WIDTH / 2, 250, 18, '#fff');
     } else if (gameState.currentMenu === 'levelComplete') {
       drawText('LEVEL COMPLETE!', WIDTH / 2, 80, 36, '#90EE90');
       drawText(`${getCurrentLevelData().name}`, WIDTH / 2, 140, 20, '#ffd166');
       drawText(`Final Score: ${player.score}`, WIDTH / 2, 200, 18, '#fff');
-      if (gameState.currentLevel < levels.length - 1) {
-        drawText('Press SPACE for Next Level', WIDTH / 2, 260, 16, '#ffd166');
-      } else {
-        drawText('Press SPACE to Face the First Boss', WIDTH / 2, 260, 16, '#ffd166');
-      }
+      drawText('Press SPACE for Next Level', WIDTH / 2, 260, 16, '#ffd166');
     } else if (gameState.currentMenu === 'bossDefeated') {
       drawText('BOSS DEFEATED!', WIDTH / 2, 80, 36, '#FF69B4');
       drawText(`${bosses[gameState.currentBossIndex].name}`, WIDTH / 2, 140, 20, '#ffd166');
@@ -393,6 +378,11 @@
     drawText(`Computer: ${computer.score}`, WIDTH - 80, 30, 16, '#9fb4c8');
     drawText(`Lives: ${gameState.lives}`, 30, HEIGHT - 20, 14, gameState.lives <= 1 ? '#FF6347' : '#fff');
 
+    if (isCurrentLevelBoss()) {
+      const boss = bosses[gameState.currentBossIndex];
+      drawText(`⚔️ ${boss.name} ⚔️`, WIDTH / 2, HEIGHT - 20, 14, boss.color);
+    }
+
     if (player.activePowerUps.length > 0) {
       let xOffset = WIDTH - 150;
       player.activePowerUps.forEach(powerUpType => {
@@ -404,10 +394,19 @@
 
     if (isCurrentLevelBoss()) {
       const boss = bosses[gameState.currentBossIndex];
-      drawText(`⚔️ ${boss.name} ⚔️`, WIDTH / 2, HEIGHT - 20, 14, boss.color);
+      const healthWidth = 180;
+      const healthX = WIDTH / 2 - healthWidth / 2;
+      const healthY = HEIGHT - 42;
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(healthX, healthY, healthWidth, 10);
+      const currentRatio = clamp(gameState.bossHealth / (boss.maxHealth || 1), 0, 1);
+      ctx.fillStyle = '#ff6347';
+      ctx.fillRect(healthX, healthY, healthWidth * currentRatio, 10);
+      drawText(`Boss HP: ${gameState.bossHealth}/${boss.maxHealth}`, WIDTH / 2, healthY - 6, 12, '#fff');
     }
 
-    drawText('P = Pause', WIDTH / 2, HEIGHT - 20, 12, '#666');
+    drawText('P = Pause', WIDTH / 2, HEIGHT - 44, 12, '#666');
+    drawText(`Best: ${gameState.bestScore}`, WIDTH - 150, HEIGHT - 20, 12, '#ffd166');
   }
 
   function render() {
@@ -470,6 +469,11 @@
     });
     if (currentLine) lines.push(currentLine.trim());
     return lines;
+  }
+
+  function finishMatch() {
+    gameState.totalScore += player.score;
+    updateBestScore();
   }
 
   function update() {
@@ -582,6 +586,7 @@
       if (b.x + b.r < 0) {
         computer.score++;
         soundSystem.playSound('score');
+        updateBestScore();
 
         if (player.shield) {
           player.shield = false;
@@ -591,7 +596,7 @@
           gameState.lives--;
           if (gameState.lives <= 0) {
             gameState.currentMenu = 'gameOver';
-            gameState.totalScore += player.score;
+            finishMatch();
             soundSystem.playSound('death');
           } else {
             resetBall('right');
@@ -600,28 +605,40 @@
       } else if (b.x - b.r > WIDTH) {
         player.score++;
         soundSystem.playSound('score');
+        updateBestScore();
         resetBall('left');
+
+        if (isCurrentLevelBoss()) {
+          const boss = bosses[gameState.currentBossIndex];
+          gameState.bossHealth = Math.max(0, gameState.bossHealth - 1);
+          if (gameState.bossHealth <= 0) {
+            soundSystem.playSound('levelUp');
+            if (gameState.currentBossIndex >= bosses.length - 1) {
+              gameState.currentMenu = 'bossDefeated';
+              setTimeout(() => {
+                gameState.currentMenu = 'gameWon';
+              }, 1500);
+            } else {
+              gameState.currentMenu = 'bossDefeated';
+            }
+          }
+        }
 
         if (Math.random() < level.powerUpChance) {
           spawnPowerUp(WIDTH / 2, HEIGHT / 2);
         }
 
-        if (player.score >= level.scoreToWin) {
+        if (!isCurrentLevelBoss() && player.score >= level.scoreToWin) {
           soundSystem.playSound('levelUp');
-          gameState.totalScore += player.score;
-
-          if (isCurrentLevelBoss()) {
-            gameState.currentMenu = 'bossDefeated';
-            if (gameState.currentBossIndex >= bosses.length - 1) {
-              setTimeout(() => {
-                gameState.currentMenu = 'gameWon';
-              }, 2000);
-            }
-          } else {
+          finishMatch();
+          if (gameState.currentLevel < levels.length - 1) {
             gameState.currentMenu = 'levelComplete';
-            if (gameState.currentLevel < levels.length - 1) {
-              gameState.unlockedLevels.push(gameState.currentLevel + 1);
-            }
+            gameState.unlockedLevels.push(gameState.currentLevel + 1);
+          } else {
+            gameState.currentLevel = levels.length;
+            gameState.currentBossIndex = 0;
+            setupBossBattle();
+            gameState.currentMenu = 'story';
           }
         }
       }
@@ -634,14 +651,56 @@
     syncHud();
   }
 
-  let lastTime = performance.now();
   function loop(now) {
     const dt = now - lastTime;
     lastTime = now;
-
     update();
     render();
     requestAnimationFrame(loop);
+  }
+
+  function togglePause() {
+    if (gameState.currentMenu === 'playing') {
+      gameState.currentMenu = 'paused';
+    } else if (gameState.currentMenu === 'paused') {
+      gameState.currentMenu = 'playing';
+    }
+    syncHud();
+  }
+
+  function toggleMute() {
+    soundSystem.enabled = !soundSystem.enabled;
+    gameState.soundEnabled = soundSystem.enabled;
+    syncHud();
+  }
+
+  function startAdventure() {
+    gameState.currentMenu = 'story';
+    gameState.currentLevel = 0;
+    gameState.currentBossIndex = 0;
+    gameState.lives = 3;
+    player.score = 0;
+    computer.score = 0;
+    player.height = paddleHeight;
+    player.activePowerUps = [];
+    player.shield = false;
+    resetBalls();
+    syncHud();
+  }
+
+  function restartGame() {
+    gameState.currentMenu = 'main';
+    gameState.lives = 3;
+    gameState.totalScore = 0;
+    gameState.currentLevel = 0;
+    gameState.currentBossIndex = 0;
+    player.score = 0;
+    computer.score = 0;
+    player.height = paddleHeight;
+    player.activePowerUps = [];
+    player.shield = false;
+    resetBalls();
+    syncHud();
   }
 
   canvas.addEventListener('mousemove', (e) => {
@@ -662,17 +721,6 @@
     player.y = clamp(y - player.height / 2, 0, HEIGHT - player.height);
   }, { passive: false });
 
-  function startAdventure() {
-    gameState.currentMenu = 'story';
-    gameState.currentLevel = 0;
-    gameState.currentBossIndex = 0;
-    gameState.lives = 3;
-    player.score = 0;
-    computer.score = 0;
-    resetBalls();
-    syncHud();
-  }
-
   window.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       keys[e.key] = true;
@@ -688,6 +736,7 @@
         player.score = 0;
         computer.score = 0;
         resetBalls();
+        setupBossBattle();
         syncHud();
       } else if (gameState.currentMenu === 'levelComplete') {
         gameState.currentLevel++;
@@ -700,24 +749,17 @@
         } else {
           gameState.currentLevel = levels.length;
           gameState.currentMenu = 'story';
+          setupBossBattle();
         }
       } else if (gameState.currentMenu === 'gameWon' || gameState.currentMenu === 'gameOver') {
-        gameState.currentMenu = 'main';
-        gameState.lives = 3;
-        player.score = 0;
-        computer.score = 0;
-        syncHud();
+        restartGame();
       }
     } else if (e.key === 'p' || e.key === 'P') {
-      if (gameState.currentMenu === 'playing') {
-        gameState.currentMenu = 'paused';
-      } else if (gameState.currentMenu === 'paused') {
-        gameState.currentMenu = 'playing';
-      }
+      togglePause();
     } else if (e.key === 'm' || e.key === 'M') {
-      if (gameState.currentMenu === 'paused') {
-        gameState.currentMenu = 'main';
-      }
+      toggleMute();
+    } else if (e.key === 'r' || e.key === 'R') {
+      restartGame();
     } else if (e.key === 'l' || e.key === 'L') {
       if (gameState.currentMenu === 'main') {
         gameState.currentMenu = 'levelSelect';
@@ -747,20 +789,37 @@
     });
   }
 
-  restartBtn.addEventListener('click', () => {
-    gameState.currentMenu = 'main';
-    gameState.lives = 3;
-    gameState.totalScore = 0;
-    gameState.currentLevel = 0;
-    gameState.currentBossIndex = 0;
-    player.score = 0;
-    computer.score = 0;
-    resetBalls();
-    syncHud();
-  });
+  if (restartBtn) {
+    restartBtn.addEventListener('click', () => {
+      restartGame();
+    });
+  }
+
+  if (pauseButton) {
+    pauseButton.addEventListener('click', () => {
+      if (gameState.currentMenu === 'main' || gameState.currentMenu === 'story') {
+        gameState.currentMenu = 'playing';
+      } else {
+        togglePause();
+      }
+      syncHud();
+    });
+  }
+
+  if (muteButton) {
+    muteButton.addEventListener('click', toggleMute);
+  }
+
+  if (difficultySelect) {
+    difficultySelect.addEventListener('change', (event) => {
+      gameState.difficulty = event.target.value;
+      syncHud();
+    });
+  }
 
   resetBalls();
+  setupBossBattle();
+  updateBestScoreDom();
   syncHud();
-  lastTime = performance.now();
   requestAnimationFrame(loop);
 })();
